@@ -2,26 +2,25 @@
 // Taken from PicoDrive's libretro implementation for 3DS.
 #include <3ds.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "MemoryCTR.h"
-
-typedef int (*ctr_callback_type)(void);
 
 int __stacksize__ = 2 * 1024 * 1024;
 
 static int hack3dsSvcInitialized = 0;
 
-static unsigned int s1, s2, s3, s0;
+static uint32_t s1, s2, s3, s0;
 
 //-----------------------------------------------------------------------------
 // Internal function that enables all services. This must be run via
 // svcBackdoor.
 //-----------------------------------------------------------------------------
-static void ctrEnableAllServices(void)
+static s32 ctrEnableAllServices(void)
 {
 	__asm__ volatile("cpsid aif");
 
-	unsigned int *svc_access_control = *(*(unsigned int***)0xFFFF9000 + 0x22) - 0x6;
+	uint32_t *svc_access_control = *(*(uint32_t***)0xFFFF9000 + 0x22) - 0x6;
 
 	s0 = svc_access_control[0];
 	s1 = svc_access_control[1];
@@ -33,6 +32,7 @@ static void ctrEnableAllServices(void)
 	svc_access_control[2]=0xFFFFFFFF;
 	svc_access_control[3]=0x3FFFFFFF;
 
+	return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -41,9 +41,9 @@ static void ctrEnableAllServices(void)
 //-----------------------------------------------------------------------------
 int _SetMemoryPermission(void *buffer, int size, int permission)
 {
-	unsigned int currentHandle;
+	Handle currentHandle;
 	svcDuplicateHandle(&currentHandle, 0xFFFF8001);
-	int res = svcControlProcessMemory(currentHandle, buffer, 0, size, MEMOP_PROT, permission);
+	int res = svcControlProcessMemory(currentHandle, (u32)(uintptr_t)buffer, 0, size, MEMOP_PROT, permission);
 	svcCloseHandle(currentHandle);
 
 	return res;
@@ -58,8 +58,8 @@ int _SetMemoryPermission(void *buffer, int size, int permission)
 //-----------------------------------------------------------------------------
 int _InitializeSvcHack(void)
 {
-		svcBackdoor((ctr_callback_type)ctrEnableAllServices);
-		svcBackdoor((ctr_callback_type)ctrEnableAllServices);
+		svcBackdoor(ctrEnableAllServices);
+		svcBackdoor(ctrEnableAllServices);
 
 #if 0
 		printf("svc_access_control: %x %x %x %x\n", s0, s1, s2, s3);
